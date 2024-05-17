@@ -1,4 +1,4 @@
-
+; This MDP makes use of AWH for PMF calculations, other data can be generated with AWH through gromacs PMF is the default
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
