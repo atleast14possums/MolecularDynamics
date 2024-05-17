@@ -1,17 +1,4 @@
-;
-;	File 'mdout.mdp' was generated
-;	By user: twach (1000)
-;	On host: InfinitumOmnesScientesLiber
-;	At date: Thu May 16 14:56:56 2024
-;
-;	Created by:
-;	             :-) GROMACS - gmx grompp, 2021.4-Ubuntu-2021.4-2 (-:
-;	
-;	Executable:   /usr/bin/gmx
-;	Data prefix:  /usr
-;	Working dir:  /mnt/c/users/t_m_w/downloads/lysozyme
-;	Command line:
-;	  gmx grompp -f mdout.mdp -c npt.gro -r npt.gro -t npt.cpt -p topol.top -o lyso2kbar.tpr
+
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
