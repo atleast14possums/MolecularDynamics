@@ -1,4 +1,5 @@
 ; This MDP makes use of AWH for PMF calculations, other data can be generated with AWH through gromacs PMF is the default
+; I've generally just made use of the temperature groups but for larger strucutres using user defined groups has been very helpful
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
