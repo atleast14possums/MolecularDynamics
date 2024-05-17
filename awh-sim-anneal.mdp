@@ -1,4 +1,5 @@
-
+; This MDP makes use of AWH for PMF calculation with Simulated Annealing 
+; The combination of the 2 can provide a PMF over a range of temperatures
 
 ; VARIOUS PREPROCESSING OPTIONS
 ; Preprocessor information: use cpp syntax.
