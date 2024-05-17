@@ -27,7 +27,7 @@ for file in os.listdir():
     # Check whether file is in text format or not 
     if file.endswith(".txt"): 
         file_path = f"{path}\{file}"
-  
+  # Nested For/IF statement can be replaced with file_path.endswith((.txt))
         # call read text file function 
         read_text_file(file_path) 
 
