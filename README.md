@@ -13,4 +13,6 @@ As well as a probability heatmap which will have a much better clarity and resol
 code so potential users can see exactly what eachs step will provide them with, there are also a few unnecessary print lines for the same general purpose. I would also recommend using modified .xtc files, 
 i.e. whole, no pbc, and skip nth frames for a greater resolution in analysis. 
 
+This can be done easily with the XTC conversion.py script as well. 
+
 tprgen2 can generate and execute a series of .tpr files for gromacs for a user defined temperature range and step. 
