@@ -16,3 +16,5 @@ i.e. whole, no pbc, and skip nth frames for a greater resolution in analysis.
 This can be done easily with the XTC conversion.py script as well. 
 
 tprgen2 can generate and execute a series of .tpr files for gromacs for a user defined temperature range and step. 
+
+Histogram will generate and analyze histograms made from gromacs .xvg files and calculate heat capacity using WHAM and the Multiple Histogram Method from Swendsen and Ferrenberg (1989)
