@@ -112,14 +112,10 @@ def WHAM(wrkdir):
         # The density of states g(E) is related to the unbiased probability by:
         # rho(E) = g(E) * exp(-beta*E - f_ref) / Z
         # Therefore: g(E) = rho(E) * Z * exp(beta*E + f_ref)
-        # But we can work directly with the unbiased probabilities
+        
         
         bin_width = bin_centers[1] - bin_centers[0] if len(bin_centers) > 1 else 1.0
         
-        # Partition function: Z = sum over E of g(E) * exp(-beta*E)
-        # Since rho(E) = g(E)*exp(-beta*E)/Z, we have:
-        # Z = sum over E of rho(E) * Z * exp(beta*E) * exp(-beta*E) = Z * sum(rho(E))
-        # So Z cancels out and Z = sum(rho(E)) * normalization_factor
         
         # More directly: the degeneracy is proportional to rho(E) * exp(beta*E)
         degeneracy = rho_unbiased * np.exp(beta * bin_centers + f_k_ref)
@@ -227,7 +223,7 @@ def WHAM(wrkdir):
             hist, _ = np.histogram(potentials, bins=bin_edges)
             histograms.append(hist)
         
-        # For this example, assuming no additional bias potentials (just temperature)
+        
         # If you have umbrella sampling or other biases, you'd calculate them here
         bias_potentials = np.zeros((len(temperatures), len(bin_centers)))
         
