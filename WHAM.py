@@ -1,13 +1,21 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit 
+import scipy.stats as norm
+from sympy import diff, symbols
 from scipy import constants as c
+import sympy as sp
 import math as m
+from collections import Counter
 import glob
 import seaborn as sns
+import matplotlib.ticker as ticker
+import scipy.optimize as optimize
+from scipy.optimize import minimize
 import pathlib
 
-xvg = glob.glob('path/to/files/*.xvg')
+xvg = glob.glob('/mnt/c/users/t_m_w/moleculardynamics/1ubqcalpha/clusterruns/reruns/*.xvg')
 def e(a):
     approx = 1.0000000
     for i in range(1, 5):
