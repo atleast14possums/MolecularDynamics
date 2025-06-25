@@ -18,3 +18,5 @@ This can be done easily with the XTC conversion.py script as well.
 tprgen2 can generate and execute a series of .tpr files for gromacs for a user defined temperature range and step. 
 
 WHAM is designed to intake Gromacs potential energy files and calculated the degeneracy using the free energy calculated from the Weighted Histogram Analysis Method from Kumar, et al. https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.540130812
+
+The GMPP V 0.0.1 is the complete GMPP for bulk testing and debugging, not yet ready for launch. 
