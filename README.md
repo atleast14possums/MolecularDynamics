@@ -20,3 +20,5 @@ tprgen2 can generate and execute a series of .tpr files for gromacs for a user d
 WHAM is designed to intake Gromacs potential energy files and calculated the degeneracy using the free energy calculated from the Weighted Histogram Analysis Method from Kumar, et al. https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.540130812
 
 The GMPP V 0.0.1 is the complete GMPP for bulk testing and debugging, not yet ready for launch. 
+
+GMPP V 1.0.0 is the preliminary launch of the GMPP the system runs successfully but needs some modifications before i consider it complete. 
