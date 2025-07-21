@@ -16,6 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 import zipfile
+import pathlib
 
 import tprgen as tg
 import Contacts as cont
@@ -54,13 +55,13 @@ cut_off = 1.2
 # The range is only necessary for Calpha simulations, if using all atom simulations change cut_off to an integer value ~0.5 nm (5 Å) is standard. If you go less than 2 nm (not recommended) you will have to modify the code in contacts.py line 92
 # you are free to change this range if it seems necessary, however 120% is a good starting point for most cases the minimum in contact distance is 70% of the native range
 # to account for false positives in the simulation from misfolding or kinetic flucuation. 
-trng = 80, 120
+tlow, thigh = 80, 120
 # trng is the starting range of temperatures you would like ot test your system with, 100-140K is a good starting point
 #
 dt = 1
 # dt chooses the temeprature step in kelvin between each .tpr file
 #
-#r = 8.5
+r = 8.5
 # r is the table length in nm
 # 
 # 
@@ -72,19 +73,20 @@ dt = 1
 output_folder = f'{wrkdir}/MDOutputFiles'
 os.makedirs(output_folder, exist_ok = True)
 failed = False
-""" with open(f'{wrkdir}/GMPP log.txt', 'w') as f:
+Success = False
+with open(f'{wrkdir}/GMPP log.txt', 'w') as f:
     f.write('GMPP log\n')
     f.write(f'Files will be saved to {output_folder}\n')
     f.write('Generating Potential Energy Lookup Table\n')
-table.tablegen(r) """
+table.tablegen(r, wrkdir)
 #  
 #
-def run(trng):
+def run(tlow, thigh):
     while True:
         try:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write('Generating TPR Files\n')
-            tg.tprgen(trng, output_folder)
+            tg.tprgen(tlow, thigh, 1, wrkdir)
         except Exception as e:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write(f'Error generating TPR files: {e}\n')
@@ -93,21 +95,15 @@ def run(trng):
         # tprgen will generate and execute the tpr files for the range of temperatures in trng
         #
         #
-        try:
+        tpr_files = glob.glob(f'{wrkdir}/*.tpr')
+        if len(tpr_files)==0:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Generating Coarse Grained PDBs for RMSD Analysis and .xtc Conversions\n')
-            # coars graining a pdb for rmsd calculation; gromacs will throw an error when attempting to calculate rmsd of a calpha simulation with an all atom pdb
-            pm.coarspdb(output_folder)
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error generating coarse grained PDBs: {e}\n')
-                failed = True
-                break
+               f.write('No tpr files found, check input files.')
         # xtc modifications for simpler analysis and smaller data sizes
         try:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write('Generating XTC Files\n')
-            xtc.xtcmods(output_folder)
+            xtc.xtcmods(wrkdir)
         except Exception as e:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write(f'Error generating XTC files: {e}\n')
@@ -117,62 +113,84 @@ def run(trng):
         try:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write('Generating XVG Files\n')
-            xvg.xvgenie(output_folder)
+            xvg.xvgenie(wrkdir)
         except Exception as e:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write(f'Error generating XVG files: {e}\n')
                 failed = True
                 break
+
         # Bimodality test to identify Tf
         
          
         try:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write('Performing Bimodality Test\n')
-            bimodal, foldingtemp = bt.bimodal(output_folder)
+            bimodal, foldingtemp = bt.bimodal(wrkdir)
             
             if bimodal == True:
                 
                 with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                     f.write(f'Tf = {foldingtemp} K\n')
-                    f.write('Note: Due to lack of solvent, the folding temperature is significantly lower than in reality. The Q(t) and RMSD plots will show the fold populations')
+                    
                 return foldingtemp
                 
             if bimodal == False:
-                if trng.min() == 80:
-                    trngl = trng[0]+41
-                    trngh = trng[1]+40
-                    trng = trngl, trngh
+                if tlow == 80:
+                    tlow = tlow+41
+                    thigh = thigh+40
+                    
                     with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                        f.write(f'Generating new TPR files for Temperature Range {trngl}-{trngh}\n')
-                    run(trng)
+                        f.write(f'Generating new TPR files for Temperature Range {tlow}-{thigh}\n')
+                    run(tlow, thigh)
                 else:
-                    trngl = 40
-                    trngh = 79
-                    trng = trngl, trngh
+                    tlow = 40
+                    thigh = 79
+                    
                     with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                        f.write(f'Generating new TPR files for Temperature Range {trngl}-{trngh}\n')
-                    run(trng)
+                        f.write(f'Generating new TPR files for Temperature Range {tlow}-{thigh}\n')
+                    run(tlow, thigh)
         except Exception as e:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write(f'Error performing bimodality test: {e}\n')
                 failed = True
                 break  
+        try:
+            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+                f.write('Generating C alpha PDB for contact analysis\n')
+            pm.coarspdb(wrkdir)
+
+        except Exception as e:
+            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+                f.write(f'Error performing pdb modification: {e}\n')
+                failed = True
+                break
         # contact analysis for analyzing folding transitions
         try:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write('Performing Contact Analysis\n')
             q = cont.contact_analysis(cut_off, foldingtemp, wrkdir)
-            with open(f'{wrkdir}/MDOutputFiles/contacts.txt', 'a') as f:
-                f.write(f'Number of contacts framewise: \n')
-                for i in q:
-                    f.write(f'{i}\n')
-                f.close()
+            
+                
         except Exception as e:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
                 f.write(f'Error performing contact analysis: {e}\n')
                 failed = True
                 break
+        
+        try:
+            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+                f.write('Running WHAM analysis\n')
+                f.close()
+            whamcheck = WHAM.WHAM(wrkdir)
+            if whamcheck:
+                Success = True
+                break
+        except Exception as e:
+            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+                f.write(f'Error running WHAM analysis: {e}\n')
+                failed = True
+                break    
 def send_email(output_folder, wrkdir, sender_email, receiver_email, subject, body):
     zip_file_path = f'{output_folder}/GMPP.zip'
     with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -200,20 +218,18 @@ def send_email(output_folder, wrkdir, sender_email, receiver_email, subject, bod
     server.login(sender_email, 'Ifthisdoesntworkimightscream')
     server.sendmail(sender_email, receiver_email, msg.as_string())
     server.quit()
-        
-sender_email = 'twatch@iastate.edu' # Need to make an email account for sending outputs and receiving comments/concerns
-receiver_email = 'watchorntrevor@gmail.com' # arg parse the user email
+
+
+run(tlow, thigh)
+sender_email = 'twatch@iastate.edu'
+receiver_email = 'watchorntrevor@gmail.com'
 subject = 'GMPP Output Files'
 if failed == True:
     body = 'GMPP failed, please check log file for more information'
     with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-        f.write('GMPP failed, please check log file for more information\n')
-    send_email(output_folder, wrkdir, sender_email, receiver_email, subject, body)
+        f.write('GMPP failed')
 else:
-    # WHAM integration
-    WHAM.wham(output_folder)
     body = 'GMPP finished, check log file for more information. Thank you for using the Go-Model Pressure Project!'
-    send_email(output_folder, wrkdir, sender_email, receiver_email, subject, body)
+    
 
 
-# GB1, lysozyme, 1ubq mutant

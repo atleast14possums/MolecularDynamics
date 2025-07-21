@@ -8,7 +8,7 @@ import seaborn as sns
 import pathlib   
 
 def WHAM(wrkdir):
-    xvg = glob.glob(f'{wrkdir}/*.xvg')
+    xvg = glob.glob(f'{wrkdir}/*potential.xvg')
     def wham_iteration(histograms, bin_centers, bias_potentials, temperatures, max_iter=1000, tol=1e-8):
         """
         Standard WHAM implementation following Kumar et al. 1992
@@ -200,7 +200,7 @@ def WHAM(wrkdir):
         # Read data from all files
         for file in xvg_files:
             # Extract temperature from filename
-            temp = int(pathlib.Path(file).stem)
+            temp = int(pathlib.Path(file).stem.split('_')[0])
             temperatures.append(temp)
             
             # Load potential energy data
@@ -305,7 +305,7 @@ def WHAM(wrkdir):
         plt.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig('WHAM and Thermodynamic Data.png')
+        plt.savefig(f'{wrkdir}/MDOutputFiles/WHAM and Thermodynamic Data.png')
     
         max_cv_idx = np.argmax(heat_caps)
         with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
