@@ -1,22 +1,18 @@
 import numpy as np
 import mdtraj as md
+from itertools import combinations
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
-import glob
+import glob as glob
 import os
-import subprocess
-import pexpect
+import subprocess as subprocess
+import pexpect as pexpect
 import sys
 import argparse
 import scipy.constants as c
 import matplotlib.ticker as ticker
-import smtplib 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-import zipfile
-import pathlib
+
 
 import tprgen as tg
 import Contacts as cont
@@ -26,6 +22,7 @@ import XTCconversion as xtc
 import WHAM
 import xvgenie as xvg
 import BimodalTest as bt
+import Landscape as ls
 
 def main():
 
@@ -39,6 +36,7 @@ def main():
 
 if __name__ == '__main__':
     wrkdir = main()
+
 #----------------------------------------------------------------------------------------------------------------
 # Settings
 # 
@@ -63,7 +61,7 @@ dt = 1
 #
 r = 8.5
 # r is the table length in nm
-# 
+# 8.5 is the relative minimum allowed by gromacs
 # 
 #
 #
@@ -72,164 +70,130 @@ r = 8.5
 #
 output_folder = f'{wrkdir}/MDOutputFiles'
 os.makedirs(output_folder, exist_ok = True)
-failed = False
-Success = False
+foldingtemp = 0
 with open(f'{wrkdir}/GMPP log.txt', 'w') as f:
     f.write('GMPP log\n')
     f.write(f'Files will be saved to {output_folder}\n')
     f.write('Generating Potential Energy Lookup Table\n')
-table.tablegen(r, wrkdir)
+table.tablegen(r)
 #  
 #
-def run(tlow, thigh):
-    while True:
-        try:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Generating TPR Files\n')
-            tg.tprgen(tlow, thigh, 1, wrkdir)
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error generating TPR files: {e}\n')
-                failed = True
-                break
-        # tprgen will generate and execute the tpr files for the range of temperatures in trng
-        #
-        #
-        tpr_files = glob.glob(f'{wrkdir}/*.tpr')
-        if len(tpr_files)==0:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-               f.write('No tpr files found, check input files.')
-        # xtc modifications for simpler analysis and smaller data sizes
-        try:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Generating XTC Files\n')
-            xtc.xtcmods(wrkdir)
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error generating XTC files: {e}\n')
-                failed = True
-                break
-        # xvg generator WHAM integration and heat Cv determination
-        try:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Generating XVG Files\n')
-            xvg.xvgenie(wrkdir)
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error generating XVG files: {e}\n')
-                failed = True
-                break
+rc = 0
 
-        # Bimodality test to identify Tf
+sysnm = "protein"  
+
+
+max_iterations = 3  
+iteration = 0
+
+while iteration < max_iterations:
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Iteration {iteration + 1}: Generating TPR Files for temperature range {trng[0]}-{trng[1]}K\n')
         
-         
-        try:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Performing Bimodality Test\n')
-            bimodal, foldingtemp = bt.bimodal(wrkdir)
-            
-            if bimodal == True:
-                
-                with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                    f.write(f'Tf = {foldingtemp} K\n')
-                    
-                return foldingtemp
-                
-            if bimodal == False:
-                if tlow == 80:
-                    tlow = tlow+41
-                    thigh = thigh+40
-                    
-                    with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                        f.write(f'Generating new TPR files for Temperature Range {tlow}-{thigh}\n')
-                    run(tlow, thigh)
-                else:
-                    tlow = 40
-                    thigh = 79
-                    
-                    with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                        f.write(f'Generating new TPR files for Temperature Range {tlow}-{thigh}\n')
-                    run(tlow, thigh)
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error performing bimodality test: {e}\n')
-                failed = True
-                break  
-        try:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Generating C alpha PDB for contact analysis\n')
-            pm.coarspdb(wrkdir)
-
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error performing pdb modification: {e}\n')
-                failed = True
-                break
-        # contact analysis for analyzing folding transitions
-        try:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Performing Contact Analysis\n')
-            q = cont.contact_analysis(cut_off, foldingtemp, wrkdir)
-            
-                
-        except Exception as e:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error performing contact analysis: {e}\n')
-                failed = True
-                break
         
-        try:
+        tg.tprgen(tlow, thigh, dt, wrkdir)
+        
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error generating TPR files: {e}\n')
+        break  # Exit on TPR generation failure
+
+    # Check if any .tpr files were actually created
+    tpr_files = glob.glob(f'{wrkdir}/*.tpr')
+    if len(tpr_files) == 0:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('No TPR files found after generation. Check input files.\n')
+        break
+
+    # Check if simulations actually ran (look for .xtc files)
+    xtc_files = glob.glob(f'{wrkdir}/*.xtc')
+    if not xtc_files:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('No XTC files found. Simulations may not have run successfully.\n')
+        # You might want to break here or continue depending on your workflow
+
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Generating Coarse Grained PDBs for RMSD Analysis and .xtc Conversions\n')
+        pm.coarspdb(output_folder)
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error generating coarse grained PDBs: {e}\n')
+
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Generating XTC Files\n')
+        xtc.xtcmods(output_folder)
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error generating XTC files: {e}\n')
+
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Performing Contact Analysis\n')
+        q = cont.contact_analysis(cut_off, output_folder)
+        
+        
+        with open(f'{wrkdir}/{sysnm}_contacts.txt', 'w') as f:  # Changed 'a' to 'w' to overwrite
+            f.write(f'Number of contacts framewise: \n')
+            for i in q:
+                f.write(f'{i}\n')
+                
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error performing contact analysis: {e}\n')
+
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Generating XVG Files\n')
+        xvg.xvgenie(output_folder)
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error generating XVG files: {e}\n')
+
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Performing Bimodality Test\n')
+        bimodal, foldingtemp = bt.bimodal(output_folder)
+        foldingtemp = os.path.splitext(foldingtemp)[0]
+        
+        if bimodal == True:
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write('Running WHAM analysis\n')
-                f.close()
-            whamcheck = WHAM.WHAM(wrkdir)
-            if whamcheck:
-                Success = True
-                break
-        except Exception as e:
+                f.write(f'Tf = {foldingtemp} K\n')
+                f.write('Note: Due to lack of solvent, the folding temperature is significantly lower than in reality. The Q(t) and RMSD plots will show the fold populations\n')
+                f.write(f'Go Model Pressure Project has completed successfully\n')
+                f.write(f'Check output files to clarify results\n')
+                f.write(f'Thank you for using Go Model Pressure Project\n')
+            break  # Success - exit the loop
+            
+        else:
+            # Expand temperature range for next iteration
+            trngl = trng[0] + 41
+            trngh = trng[1] + 40
+            trng = (trngl, trngh)  # Update the tuple
+            iteration += 1
+            
             with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f'Error running WHAM analysis: {e}\n')
-                failed = True
-                break    
-def send_email(output_folder, wrkdir, sender_email, receiver_email, subject, body):
-    zip_file_path = f'{output_folder}/GMPP.zip'
-    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for root, dirs, files in os.walk(output_folder):
-            for file in files:
-                file_path = os.path.join(root, file)
-                zip_file.write(file_path, os.path.relpath(file_path, output_folder))
+                f.write(f'No bimodal distribution found. Expanding temperature range to {trngl}-{trngh}K\n')
+                
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error performing bimodality test: {e}\n')
+        break
 
-    with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-        f.write(f'GMPP finished\n')
-
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-
-    attachment = MIMEBase('application', 'octet-stream')
-    attachment.set_payload(open(zip_file_path, 'rb').read())
-    attachment.add_header('Content-Disposition', 'attachment; filename = %s' % zip_file_path)
-    msg.attach(attachment)
-
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(sender_email, 'Ifthisdoesntworkimightscream')
-    server.sendmail(sender_email, receiver_email, msg.as_string())
-    server.quit()
-
-
-run(tlow, thigh)
-sender_email = 'twatch@iastate.edu'
-receiver_email = 'watchorntrevor@gmail.com'
-subject = 'GMPP Output Files'
-if failed == True:
-    body = 'GMPP failed, please check log file for more information'
-    with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-        f.write('GMPP failed')
-else:
-    body = 'GMPP finished, check log file for more information. Thank you for using the Go-Model Pressure Project!'
-    
-
-
+    # After the loop, regardless of outcome
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Running WHAM analysis\n')
+        WHAM.WHAM(output_folder)
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error running WHAM analysis: {e}\n')
+    try:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write('Running Landscape analysis\n')
+        ls.landscape(output_folder, foldingtemp, cut_off)
+    except Exception as e:
+        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
+            f.write(f'Error running landscape analysis: {e}\n')

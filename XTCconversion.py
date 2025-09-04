@@ -1,220 +1,109 @@
-import subprocess
-import shutil
+import subprocess as sp
 import os
-import tempfile
 import glob
-
-
+import pathlib
 
 #
-
 # This script is for gmx trjconv for gromacs versions < 4.6 not using the gmx wrapper to take standard .xtc and .tpr files and generate a 'whole' molecule, remove pbc, and skip 100 frames
-
 # Whole is a standard process that makes any molecules that "break" in the simulation one piece again
-
 # nopbc is a process that recenters the molecule so the periodicity doesn't effect analysis
-
 # skip is done primarily to condense the data enough to make it recognizable rather than trying to fit every frame into the analysis we can take a spread out sample of the data
-
 # and use that to analyze native contacts and thermodynamics of the system
-
 #
-
 
 
 def xtcmods(wrkdir):
-   
     
-
     def whole(xtc, tpr):
-
-        file_name = os.path.splitext(os.path.basename(xtc))[0]  # Remove .xtc extension
-
-        output_file = f'{file_name}_whole.xtc'
-
+        file_name = os.path.basename(xtc).replace('.xtc', '_whole.xtc')
+        output_path = f'{wrkdir}/{file_name}'
         
-
-        process_whole = subprocess.Popen(
-
-            ['trjconv', '-f', xtc, '-s', tpr, '-o', f'{output_file}', '-pbc', 'whole'], 
-
-            stdout=subprocess.PIPE, 
-
-            stdin=subprocess.PIPE,
-
-            stderr=subprocess.PIPE,
-
-            text=True
-
-        )
-
+        process_whole = sp.Popen([
+            "gmx", 'trjconv', 
+            '-f', xtc, 
+            '-s', tpr, 
+            '-o', output_path, 
+            '-pbc', 'whole'
+        ], stdout=sp.PIPE, stdin=sp.PIPE, stderr=sp.PIPE, text=True)
         
-
-       
-
-        stdout, stderr = process_whole.communicate(input="0")
+        # Send group selection (assuming group 3, adjust as needed)
+        stdout, stderr = process_whole.communicate(input="3\n")
         
-        
-
         if process_whole.returncode != 0:
-
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-
+            with open(f'{wrkdir}/GMPP log.txt') as f:
                 f.write(f"Error in whole step: {stderr}\n")
-
             return None
-
-        
-
-        return output_file
-
-
+            
+        return output_path
 
     def nopbc(xtc, tpr):
-
-        file_name = os.path.splitext(os.path.basename(xtc))[0]  # Remove .xtc extension
-
-        output_file = f'{file_name}_nopbc.xtc'
-
+        file_name = os.path.basename(xtc).replace('.xtc', '_nopbc.xtc')
+        output_path = f'{wrkdir}/{file_name}'
         
-
-        process_nopbc = subprocess.Popen(
-
-            ['trjconv', '-f', xtc, '-s', tpr, '-o', f'{output_file}', '-pbc', 'nojump', '-center'], 
-
-            stdout=subprocess.PIPE, 
-
-            stdin=subprocess.PIPE,
-
-            stderr=subprocess.PIPE,
-
-            text=True
-
-        )
-
+        process_nopbc = sp.Popen([
+            "gmx", 'trjconv', 
+            '-f', xtc, 
+            '-s', tpr, 
+            '-o', output_path, 
+            '-pbc', 'mol', 
+            '-center'
+        ], stdout=sp.PIPE, stdin=sp.PIPE, stderr=sp.PIPE, text=True)
         
-
-
-        stdout, stderr = process_nopbc.communicate(input="0")
+        # Send group selection for centering and output
+        stdout, stderr = process_nopbc.communicate(input="3\n3\n")
         
-        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-            f.write(f"nopbc debug - input file: {xtc}\n")
-            f.write(f"nopbc debug - file exists: {os.path.exists(xtc)}\n")
-            f.write(f"nopbc debug - tpr file: {tpr}\n")
-            f.write(f"nopbc debug - tpr exists: {os.path.exists(tpr)}\n")
-
         if process_nopbc.returncode != 0:
-
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-
+            with open(f'{wrkdir}/GMPP log.txt') as f:
                 f.write(f"Error in nopbc step: {stderr}\n")
-
             return None
-
             
+        return output_path
 
-        return output_file
-
-
-
-    def skip(xtc, tpr, wrkdir):
-
-        file_name = os.path.splitext(os.path.basename(xtc))[0]  # Remove .xtc extension
-
+    def skip(xtc, tpr):
+        file_name = os.path.basename(xtc).replace('.xtc', '_skip.xtc')
+        output_path = f'{wrkdir}/{file_name}'
         
-
-
-
-        output_dir = f'{wrkdir}'
-
-        output_file = f'{file_name}_skip.xtc'
-
+        process_skip = sp.Popen([
+            'gmx', 'trjconv',  # Added 'gmx' prefix for consistency
+            '-f', xtc, 
+            '-s', tpr,  # Removed extra .tpr extension
+            '-o', output_path, 
+            '-skip', '100'
+        ], stdout=sp.PIPE, stdin=sp.PIPE, stderr=sp.PIPE, text=True)
         
-
-        process_skip = subprocess.Popen(
-
-            ['trjconv', '-f', xtc, '-s', tpr, '-o', output_file, '-skip', '100'], 
-
-            stdout=subprocess.PIPE, 
-
-            stdin=subprocess.PIPE,
-
-            stderr=subprocess.PIPE,
-
-            text=True
-
-        )
-
+        stdout, stderr = process_skip.communicate(input="3\n")
         
-
-     
-
-        stdout, stderr = process_skip.communicate(input="0")
-        
-        
-
         if process_skip.returncode != 0:
-
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-
+            with open(f'{wrkdir}/GMPP log.txt') as f:
                 f.write(f"Error in skip step: {stderr}\n")
-
             return None
-
             
+        return output_path
 
-        return output_file
-
-
-
-    
-
+    # Process files
     xtc_files = glob.glob(f'{wrkdir}/*.xtc')
-
     tpr_files = glob.glob(f'{wrkdir}/*.tpr')
-
-
-
-
-    temp_dir = tempfile.mkdtemp()
     
-    try:
-        xtc_files = glob.glob(f'{wrkdir}/*.xtc')
-        tpr_files = glob.glob(f'{wrkdir}/*.tpr')
-        
-        if not xtc_files or not tpr_files:
-            with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-                f.write(f"No .xtc or .tpr files found in {wrkdir}\n")
-            return
-        
-        for i in xtc_files:
-            for j in tpr_files:
-                x = os.path.splitext(os.path.basename(i))[0]
-                y = os.path.splitext(os.path.basename(j))[0]
-                if y == x:
-                    # Copy input files to temp directory
-                    temp_xtc = os.path.join(temp_dir, os.path.basename(i))
-                    temp_tpr = os.path.join(temp_dir, os.path.basename(j))
-                    shutil.copy2(i, temp_xtc)
-                    shutil.copy2(j, temp_tpr)
+    for xtc_file in xtc_files:
+        for tpr_file in tpr_files:
+            # Match files by stem (filename without extension)
+            if pathlib.Path(tpr_file).stem == pathlib.Path(xtc_file).stem:
+                with open(f'{wrkdir}/GMPP log.txt') as f:
+                    f.write(f"Processing {xtc_file} with {tpr_file}\n")
+                
+                # Step 1: Make molecules whole
+                xtc_whole_path = whole(xtc_file, tpr_file)
+                if not xtc_whole_path:
+                    continue
                     
-                    # Process in temp directory
-                    os.chdir(temp_dir)  # Change to temp directory
+                # Step 2: Remove PBC and center
+                xtc_nopbc_path = nopbc(xtc_whole_path, tpr_file)
+                if not xtc_nopbc_path:
+                    continue
                     
-                    # Now your functions can use just filenames
-                    xtc_whole = whole(os.path.basename(i), os.path.basename(j))
-                    if xtc_whole:
-                        xtc_nopbc = nopbc(xtc_whole, os.path.basename(j))
-                        if xtc_nopbc:
-                            xtc_final = skip(xtc_nopbc, os.path.basename(j))
-                            if xtc_final:
-                                # Copy final result back to working directory
-                                final_output = f"{x}_final.xtc"  # or whatever naming you want
-                                shutil.copy2(xtc_final, os.path.join(wrkdir, final_output))
-                    
-                    # Change back to original directory
-                    os.chdir(wrkdir)
-    
-    finally:
-        # Clean up temp directory
-        shutil.rmtree(temp_dir)
+                # Step 3: Skip frames
+                xtc_skip_path = skip(xtc_nopbc_path, tpr_file)
+                if xtc_skip_path:
+                    with open(f'{wrkdir}/GMPP log.txt') as f:
+                        f.write(f"Successfully processed: {xtc_skip_path}\n")
+

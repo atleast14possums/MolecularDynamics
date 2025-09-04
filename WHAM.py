@@ -8,7 +8,7 @@ import seaborn as sns
 import pathlib   
 
 def WHAM(wrkdir):
-    xvg = glob.glob(f'{wrkdir}/*potential.xvg')
+    xvg = glob.glob(f'{wrkdir}/*.xvg')
     def wham_iteration(histograms, bin_centers, bias_potentials, temperatures, max_iter=1000, tol=1e-8):
         """
         Standard WHAM implementation following Kumar et al. 1992
@@ -33,15 +33,14 @@ def WHAM(wrkdir):
         f_k = np.zeros(n_windows)
         
         # Calculate beta values (1/kT) for each window
-        kB = c.Boltzmann * c.Avogadro / 1000.0  # kJ/mol/K
+        kB = constants.Boltzmann * constants.Avogadro / 1000.0  # kJ/mol/K
         beta_k = 1.0 / (kB * np.array(temperatures))
         
         # Total counts in each window
         N_k = np.array([np.sum(hist) for hist in histograms])
         
-        with open('GMPP log.txt', 'a') as f:
-            f.write(f"Windows: {n_windows}, Bins: {n_bins}")
-            f.write(f"Total counts per window: {N_k}")
+        print(f"Windows: {n_windows}, Bins: {n_bins}")
+        print(f"Total counts per window: {N_k}")
         
         for iteration in range(max_iter):
             f_k_old = f_k.copy()
@@ -88,15 +87,12 @@ def WHAM(wrkdir):
             
             # Check convergence
             if np.allclose(f_k, f_k_old, atol=tol):
-                with open('GMPP log.txt', 'a') as f:
-                    f.write(f'WHAM converged after {iteration + 1} iterations\n')
-                    f.write(f'Final free energies: {f_k}\n')
-                
+                print(f'WHAM converged after {iteration + 1} iterations')
+                print(f'Final free energies: {f_k}')
                 break
                 
             if iteration == max_iter - 1:
-                with open('GMPP log.txt', 'a') as f:
-                    f.write('WHAM did not converge within maximum iterations')
+                print('WHAM did not converge within maximum iterations')
         
         return f_k, rho_unbiased
 
@@ -110,7 +106,7 @@ def WHAM(wrkdir):
         - temperature: temperature for calculation
         - f_k_ref: free energy of reference state (usually 0)
         """
-        kB = c.Boltzmann * c.Avogadro / 1000.0  # kJ/mol/K
+        kB = constants.Boltzmann * constants.Avogadro / 1000.0  # kJ/mol/K
         beta = 1.0 / (kB * temperature)
         
         # The density of states g(E) is related to the unbiased probability by:
@@ -147,7 +143,7 @@ def WHAM(wrkdir):
         Returns:
         - temperatures, heat_capacities, energy_expectations, energy_variances
         """
-        kB = c.Boltzmann * c.Avogadro / 1000.0  # kJ/mol/K
+        kB = constants.Boltzmann * constants.Avogadro / 1000.0  # kJ/mol/K
         
         heat_capacities = []
         energy_expectations = []
@@ -193,22 +189,22 @@ def WHAM(wrkdir):
         Main function to process WHAM data from XVG files with heat capacity analysis
         """
         
-        temperatures = []
+        temperatures = np.zeros(len(xvg_files))
         histograms = []
         all_energies = []
         
         # Read data from all files
         for file in xvg_files:
             # Extract temperature from filename
-            temp = int(pathlib.Path(file).stem.split('_')[0])
+            temp = int(pathlib.Path(file).stem)
             temperatures.append(temp)
             
             # Load potential energy data
             potentials = np.loadtxt(file, comments=['@', '#'], usecols=[1])
             potentials = potentials[1:]  # skip first point if needed
             all_energies.extend(potentials)
-            with open('GMPP log.txt', 'a') as f:
-                f.write(f'Loaded {len(potentials)} points from T={temp}K')
+            
+            print(f'Loaded {len(potentials)} points from T={temp}K')
         
         # Create temperature range for heat capacity from the simulation temperatures
         T_min, T_max = min(temperatures), max(temperatures)
@@ -220,11 +216,8 @@ def WHAM(wrkdir):
         bin_edges = np.linspace(e_min, e_max, n_bins + 1)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         
-        with open('GMPP log.txt', 'a') as f:
-            f.write(f'Energy range: {e_min:.2f} to {e_max:.2f} kJ/mol\n')
-            f.write(f'Bin width: {(e_max - e_min)/n_bins:.3f} kJ/mol\n')
-            f.write('Generating Histograms\n')
-        
+        print(f'Energy range: {e_min:.2f} to {e_max:.2f} kJ/mol')
+        print(f'Bin width: {(e_max - e_min)/n_bins:.3f} kJ/mol')
         
         # Create histograms for each window
         for i, file in enumerate(xvg_files):
@@ -245,10 +238,8 @@ def WHAM(wrkdir):
         ref_temp = temperatures[0]  # or choose your reference
         Z, degeneracy = calculate_partition_function(rho_unbiased, bin_centers, ref_temp, f_k[0])
         
-        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-            f.write(f'Free energies: {f_k}\n')
-            f.write(f'Partition function at {ref_temp}K: {Z:.6e}\n')
-        
+        print(f'Free energies: {f_k}')
+        print(f'Partition function at {ref_temp}K: {Z:.6e}')
         
         # Calculate heat capacity over temperature range
         temps, heat_caps, energy_avgs, energy_vars = calculate_heat_capacity(bin_centers, degeneracy, temp_range)
@@ -305,7 +296,8 @@ def WHAM(wrkdir):
         plt.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(f'{wrkdir}/MDOutputFiles/WHAM and Thermodynamic Data.png')
+        plt.show()
+        plt.savefig('WHAM and Thermodynamic Data.png')
     
         max_cv_idx = np.argmax(heat_caps)
         with open(f'{wrkdir}/GMPP log.txt', 'a') as f:

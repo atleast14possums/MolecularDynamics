@@ -5,7 +5,6 @@ import os
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import pathlib
 
 #----------------------------------------------------------------------------------------------------------------
 # Settings area for contact analysis
@@ -24,11 +23,9 @@ import pathlib
 #
 # End Settings
 #----------------------------------------------------------------------------------------------------------------
-def contact_analysis(cut_off, tf, wrkdir):
+def contact_analysis(cut_off, wrkdir):
     cont_file = glob.glob(f'{wrkdir}/*.contacts')
-
-    
-    foldingtemp = tf
+    os.mkdir(f'{wrkdir}/Contact Plots', exist_ok = True)
     def best_hummer_q(traj, native, cont_file):
         """Compute the fraction of native contacts according the definition from
         Best, Hummer and Eaton [1]
@@ -56,22 +53,21 @@ def contact_analysis(cut_off, tf, wrkdir):
     
         beta_const = 50 # 1/nm
         lambda_const = 1.2 
-        native_cutoff = 0.45 # nm
+        native_cutoff = 0.4 # nm
         
         
         
         df = pd.read_csv(cont_file, sep='\s+', usecols=[1, 3])
         
         capairs = df.values
-        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-            f.write(f'Calculating Distances for {capairs} in {file} with trajectory: {traj} and native structure: {traj[0]}')
-        pairs_dist = md.compute_distances(traj[0], capairs)
 
+        pairs_dist = md.compute_distances(native, capairs)
+    
         native_contacts = capairs[np.any(pairs_dist < native_cutoff)]
         
         nativ2d = native_contacts.reshape(-1,2)
         
-        r =  md.compute_distances(traj, nativ2d)
+        r =  md.compute_distances(t, nativ2d)
 
         r0 = md.compute_distances(native[0], nativ2d)
         
@@ -80,7 +76,7 @@ def contact_analysis(cut_off, tf, wrkdir):
         return q, capairs
 
     #
-    # qplot is a pretty easy to manipulate function that can be modified to fit your needs
+    # qplot is a pretty easy to use manipulate function that can be modified to fit your needs
     # the basic idea is that the script will extract the first frame contact distances then produce 2 arrays, one that compares the distances to the maximum cutoff
     # of 120-140% of the native distances and one that compares the distances to the minimum cutoff of 70-80% of the native distances. If the distances is
     # less than the max cutoff and greater than the min cutoff its counted as a contact.
@@ -92,14 +88,14 @@ def contact_analysis(cut_off, tf, wrkdir):
         capairs = pairslist.values
         natcounts = len(capairs)
         # extracting the native distances   
-        natrng = md.compute_distances(traj[0], capairs)
+        natrng = md.compute_distances(t[0], capairs)
         if cut_off > 1:
             natmodu = natrng*cut_off
         else:
             natmodu = cut_off
         natmodl = natrng*.8
         # framewise distances
-        conts = md.compute_distances(traj, capairs)
+        conts = md.compute_distances(t, capairs)
         # compare the larger distances, if using hard cut off for all atom simulations (cut_off = int), for calpha simulations (cut_off = float) q will be calculated as a range relative to the native distance  
         frmcontsu = np.greater(natmodu, conts)
         frmcontsl = np.greater(conts, natmodl)
@@ -121,42 +117,36 @@ def contact_analysis(cut_off, tf, wrkdir):
             qf = i/natcounts
             qt.append(qf)
             qf = 0
+
         return qt
-      
 
 
 
-
-
-    xtc = glob.glob(f'{wrkdir}/*_whole.xtc')
-    ca = f'{wrkdir}/caonly.pdb'
+def contactgraphs(wrkdir, cut_off):
+    xtc = glob.glob(f'{wrkdir}/MDOutputFiles/*.xtc')
+    ca = glob.glob(f'{wrkdir}/MDOutputFiles/caonly.pdb')
     cont_file = glob.glob(f'{wrkdir}/*.contacts')
-    cont_file = cont_file[0]
+
     for file in xtc:
-        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-            f.write(f'Performing Contact Analysis for {file} with {ca}')
-        t = md.load(file, top=ca)
-        fname = pathlib.Path(file).stem.split('-')[0]
-        q, capairs = best_hummer_q(t, t[0], cont_file)
+        t = md.load(file, top='f{wrkdir}/caonly.pdb')
+        q, capairs = contact_analysis.best_hummer_q(t, t[0], cont_file)
         dmap = md.geometry.squareform(q, capairs)
         cmap = np.mean(dmap, axis = 0)
-        qt = qplot(t, cont_file, cut_off)
-        
+        qt = contact_analysis.qplot(t, cont_file, cut_off)
         plt.clf()
 
         sns.heatmap(cmap, cmap = 'rocket_r', square=True)
         plt.gca().invert_yaxis()
         plt.xlabel('Residue #')
         plt.ylabel('Residue #')
-        plt.savefig(f"{wrkdir}/MDOutputFiles/{fname} Probability Map.jpg")
+        plt.savefig(f"{file} Probability Map.jpg")
         plt.clf()
         ymin, ymax = 0, 1
-        with open(f'{wrkdir}/GMPP log.txt', 'a') as f:
-            f.write(f"heat map done\n Graphing {qt}")
+
         plt.plot(qt, linewidth = 0.4)
         plt.ylim(ymin, ymax)
         plt.xlabel('Time (fs)')
         plt.ylabel('Q(t)')
-        plt.title(f'Q({fname} K)')
-        
-        plt.savefig(f'{wrkdir}/MDOutputFiles/{fname} Q(t).jpg')
+        plt.title(f'Traditional Q from residues within 150% of native range, {file} K')
+        plt.axhline(y=np.mean(qt), color='r', linestyle='--', label='Average')
+        plt.savefig(f'{wrkdir}/Contact Plots/{file} Q(t).jpg')

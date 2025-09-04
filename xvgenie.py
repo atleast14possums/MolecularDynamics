@@ -1,61 +1,26 @@
+# xvg generator
+import pexpect
 import subprocess
 
-import glob
-
-import os
-
-
-
 def xvgenie(wdir):
-
     
-
-    log_file = f'{wdir}/GMPP log.txt'
-
-    
-
     edrs = glob.glob(f'{wdir}/*.edr')
-
     for file in edrs:
+        file = os.path.splitext(file)[0]
+        # Define the GROMACS command to run
+        gromacs_cmd = f"gmx energy -f {file}.edr -o potential_energy.xvg"
 
-        base_name = os.path.splitext(os.path.basename(file))[0]
+        # Spawn the GROMACS process using pexpect
+        child = pexpect.spawn(gromacs_cmd)
 
-        output_file = f"{base_name}_potential.xvg"
+        child.expect('              :-) GROMACS')
+        child.sendline('Potential')
+        # Wait for the process to finish
+        child.expect(pexpect.EOF)
 
-        
+        # Get the output from the process
+        output = child.before
 
-        # For GROMACS 4.5.7, use subprocess with "Potential" string
-
-        process = subprocess.Popen(
-
-            ["g_energy", "-f", file, "-o", output_file],  # Note: g_energy for 4.5.7
-
-            stdin=subprocess.PIPE,
-
-            stdout=subprocess.PIPE,
-
-            stderr=subprocess.PIPE,
-
-            text=True
-
-        )
-
-        
-
-        # Send "Potential" and then empty line to confirm
-
-        stdout, stderr = process.communicate(input="Potential\n\n")
-
-        
-
-        with open(log_file, 'a') as log:
-
-            if process.returncode != 0:
-
-                log.write(f"Error processing {file}: {stderr}\n")
-
-            else:
-
-                log.write(f"Generated {output_file}\n")
-
-
+        # Save the output to a file
+        with open(f"{file}.xvg", "w") as f:
+            f.write(output)
